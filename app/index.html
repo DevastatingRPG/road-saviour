@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Traffic Saviour Control Panel</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+
+        .container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background: url('background-image.jpg') no-repeat center center;
+            background-size: cover;
+        }
+
+        /* Accelerator Button */
+        .accelerator {
+            position: absolute;
+            bottom: 20%;
+            left: 70%;
+            width: 100px;
+            height: 100px;
+            cursor: pointer;
+            background: url('accelerator.png') no-repeat center center;
+            background-size: contain;
+        }
+
+        /* Reverse Button */
+        .reverse {
+            position: absolute;
+            bottom: 20%;
+            left: 50%;
+            width: 100px;
+            height: 100px;
+            cursor: pointer;
+            background: url('reverse.png') no-repeat center center;
+            background-size: contain;
+        }
+
+        /* Live Feed Section */
+        .live-feed {
+            position: absolute;
+            top: 10%;
+            left: 10%;
+            width: 300px;
+            height: 200px;
+            border: 5px solid #ccc;
+            background-color: black;
+        }
+
+        .live-feed img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        /* LED Alerts */
+        .led {
+            position: absolute;
+            top: 50%;
+            left: 20%;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background-color: gray;
+        }
+
+        .led.active {
+            background-color: green;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <!-- Accelerator Button -->
+        <div class="accelerator" id="accelerator"></div>
+
+        <!-- Reverse Button -->
+        <div class="reverse" id="reverse"></div>
+
+        <!-- Live Feed Section -->
+        <div class="live-feed">
+            <img id="live-feed-image" src="" alt="Live Feed">
+        </div>
+
+        <!-- LED Alerts -->
+        <div class="led" id="led1"></div>
+        <div class="led" id="led2"></div>
+    </div>
+
+    <script>
+        // API Endpoints
+        const sendCommandEndpoint = "http://127.0.0.1:8000/send-command/";
+        const liveFeedEndpoint = "http://127.0.0.1:8000/get-image/";
+
+        // LED Elements
+        const led1 = document.getElementById("led1");
+        const led2 = document.getElementById("led2");
+
+        // Accelerator Button
+        const accelerator = document.getElementById("accelerator");
+        accelerator.addEventListener("click", async () => {
+            toggleLED(led1, true);
+            await sendCommand("accelerate");
+            toggleLED(led1, false);
+        });
+
+        // Reverse Button
+        const reverse = document.getElementById("reverse");
+        reverse.addEventListener("click", async () => {
+            toggleLED(led2, true);
+            await sendCommand("reverse");
+            toggleLED(led2, false);
+        });
+
+        // Live Feed Image
+        const liveFeedImage = document.getElementById("live-feed-image");
+
+        // Function to toggle LEDs
+        function toggleLED(led, state) {
+            if (state) {
+                led.classList.add("active");
+            } else {
+                led.classList.remove("active");
+            }
+        }
+
+        // Function to send a command to the backend
+        async function sendCommand(command) {
+            try {
+                const response = await fetch(sendCommandEndpoint, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ command }),
+                });
+                const data = await response.json();
+                console.log(data);
+            } catch (error) {
+                console.error("Error sending command:", error);
+            }
+        }
+
+        // Function to periodically fetch the live feed
+        async function fetchLiveFeed() {
+            try {
+                const response = await fetch(liveFeedEndpoint);
+                if (response.ok) {
+                    const blob = await response.blob();
+                    liveFeedImage.src = URL.createObjectURL(blob);
+                }
+            } catch (error) {
+                console.error("Error fetching live feed:", error);
+            }
+        }
+
+        // Fetch live feed every 5 seconds
+        setInterval(fetchLiveFeed, 5000);
+    </script>
+</body>
+
+</html>
