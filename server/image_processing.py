@@ -1,6 +1,8 @@
 import cv2
 import numpy as np
 from PIL import Image
+import math
+from itertools import combinations
 from sklearn.linear_model import LinearRegression
 
 from io import BytesIO
@@ -280,7 +282,7 @@ def zebra_detection(image_path="received_image.jpg"):
         num_corners = len(approx)
         if 3 <= num_corners <= 5:  # Only consider contours with 3 to 5 corners
             area = cv2.contourArea(contour)
-            if area > 100:  # Adjust this threshold as needed
+            if area > 20:  # Adjust this threshold as needed
                 # Get the rotated bounding rectangle
                 rect = cv2.minAreaRect(contour)
                 width, height = rect[1]  # rect[1] contains (width, height)
@@ -305,25 +307,29 @@ def zebra_detection(image_path="received_image.jpg"):
 
     # Check if a straight line can be formed through at least 3 centers
     zebra_detected = False
+    specific_contours = []
     if len(centers) >= 3:
-        # Convert centers to a numpy array
-        centers_array = np.array(centers)
+        # Iterate through all combinations of 3 points
+        for comb in combinations(range(len(centers)), 3):
+            p1, p2, p3 = centers[comb[0]], centers[comb[1]], centers[comb[2]]
 
-        # Perform linear regression to check alignment
-        x = centers_array[:, 0].reshape(-1, 1)  # X-coordinates
-        y = centers_array[:, 1]  # Y-coordinates
-        model = LinearRegression().fit(x, y)
+            # Sort points by x-coordinate (leftmost, center, rightmost)
+            sorted_points = sorted([p1, p2, p3], key=lambda x: x[0])
+            left, center, right = sorted_points
 
-        # Calculate the residuals (distance from the line)
-        y_pred = model.predict(x)
-        residuals = np.abs(y - y_pred)
+            # Calculate angles of the two lines with the horizontal axis
+            angle1 = math.degrees(math.atan2(center[1] - left[1], center[0] - left[0]))
+            angle2 = math.degrees(math.atan2(right[1] - center[1], right[0] - center[0]))
 
-        # Check if at least 3 points have residuals within a tolerance
-        tolerance = 10  # Adjust this value as needed
-        if np.sum(residuals < tolerance) >= 3:
-            zebra_detected = True
+            # Check if the angles are within a threshold
+            angle_diff = abs(angle1 - angle2)
+            print(angle_diff)
+            if angle_diff < 10:  # Adjust this threshold as needed
+                zebra_detected = True
+                specific_contours = [filtered_contours[comb[0]], filtered_contours[comb[1]], filtered_contours[comb[2]]]
+                break
 
-    return zebra_detected, adjusted_contours, filtered_contours
+    return zebra_detected, adjusted_contours, specific_contours
 
                     
 

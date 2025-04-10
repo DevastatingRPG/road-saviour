@@ -46,15 +46,17 @@ frame_counter = 0
 
 # Function to establish a socket connection
 def connect_to_esp32():
-    global esp32_socket, esp32_conn
+    global esp32_socket, esp32_conn, esp32_connected
     while True:
         try:
             esp32_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             esp32_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            print('a')
             esp32_socket.bind((esp32_ip, esp32_port))
             esp32_socket.listen()
+            print('b')
             esp32_conn, addr = esp32_socket.accept()
-            esp32_connected = True
+            print('c')
             # esp32_socket.connect((esp32_ip, esp32_port))
             print("Connected to ESP32 successfully.")
             
@@ -65,6 +67,8 @@ def connect_to_esp32():
                 print(f"Received name from ESP32: {esp32_name}")
             else:
                 print(f"Unexpected message from ESP32 during connection: {data}")
+
+            esp32_connected = True
             break
         except Exception as e:
             print(f"Failed to connect to ESP32: {e}. Retrying in 5 seconds...")
