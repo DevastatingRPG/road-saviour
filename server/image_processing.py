@@ -1,6 +1,8 @@
 import cv2
 import numpy as np
 from PIL import Image
+from sklearn.linear_model import LinearRegression
+
 from io import BytesIO
 
 import cv2
@@ -268,6 +270,7 @@ def zebra_detection(image_path="received_image.jpg"):
 
     # Filter contours based on area, aspect ratio (rotated bounding rectangle), and number of corners
     filtered_contours = []
+    centers = []
     for contour in adjusted_contours:
         # Approximate the contour to a polygon
         epsilon = 0.02 * cv2.arcLength(contour, True)  # Adjust epsilon as needed
@@ -292,6 +295,40 @@ def zebra_detection(image_path="received_image.jpg"):
                 # Check for a rectangular shape (aspect ratio close to 1)
                 if 0.5 <= aspect_ratio <= 5:
                     filtered_contours.append(approx)
+
+                    # Calculate the center of the contour
+                    M = cv2.moments(contour)
+                    if M["m00"] != 0:
+                        cx = int(M["m10"] / M["m00"])
+                        cy = int(M["m01"] / M["m00"])
+                        centers.append((cx, cy))
+
+    # Check if a straight line can be formed through at least 3 centers
+    zebra_detected = False
+    if len(centers) >= 3:
+        # Convert centers to a numpy array
+        centers_array = np.array(centers)
+
+        # Perform linear regression to check alignment
+        x = centers_array[:, 0].reshape(-1, 1)  # X-coordinates
+        y = centers_array[:, 1]  # Y-coordinates
+        model = LinearRegression().fit(x, y)
+
+        # Calculate the residuals (distance from the line)
+        y_pred = model.predict(x)
+        residuals = np.abs(y - y_pred)
+
+        # Check if at least 3 points have residuals within a tolerance
+        tolerance = 10  # Adjust this value as needed
+        if np.sum(residuals < tolerance) >= 3:
+            zebra_detected = True
+
+    return zebra_detected, adjusted_contours, filtered_contours
+
+                    
+
+
+
 
     return adjusted_contours, filtered_contours
 
