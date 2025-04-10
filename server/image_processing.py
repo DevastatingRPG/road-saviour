@@ -72,52 +72,226 @@ def signal_detection(image_path="received_image.jpg"):
     else:
         return "unknown"
 
+# def zebra_detection(image_path="received_image.jpg"):
+#     '''
+#     1. Read image from received_image.jpg file
+#     2. Convert image to grayscale
+#     3. Apply histogram equalization to enhance contrast
+#     4. Apply Gaussian blur to the image
+#     5. Use Canny edge detection to find edges in the image
+#     6. Perform Morphological opening to remove small noise
+#     7. Find contours in the edge-detected image
+#     8. Filter contours based on area and aspect ratio to identify zebra crossings
+#     9. Return detected contours
+#     '''
+#     # Read image from received_image.jpg file
+#     image = cv2.imread(image_path)
+#     if image is None:
+#         raise FileNotFoundError(f"Image not found at {image_path}")
+
+#     # Convert image to grayscale
+#     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    
+#     # Apply histogram equalization to enhance contrast
+#     equalized = cv2.equalizeHist(gray)
+    
+#     # Apply Gaussian blur to the image (on the equalized image)
+#     blurred = cv2.GaussianBlur(equalized, (5, 5), 0)
+
+#     # Use Canny edge detection to find edges in the image
+#     edges = cv2.Canny(blurred, 50, 150)
+
+#     # # Define a kernel for morphological operations
+#     # kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+
+#     # # Perform morphological opening to remove small noise
+#     # opened_edges = cv2.morphologyEx(edges, cv2.MORPH_OPEN, kernel)
+
+#     # Find contours in the cleaned-up edge-detected image
+#     contours = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[-2]
+
+#     # Filter contours based on area and aspect ratio to identify zebra crossings
+#     detected_contours = []
+#     for contour in contours:
+#         area = cv2.contourArea(contour)
+#         if area > 100:  # Adjust this threshold as needed
+#             x, y, w, h = cv2.boundingRect(contour)
+#             aspect_ratio = float(w) / h
+
+#             # Check for a rectangular shape (aspect ratio close to 1)
+#             if aspect_ratio > 0.5 and aspect_ratio < 1.5:
+#                 detected_contours.append(contour)
+
+#     return detected_contours
+
+# def zebra_detection(image_path="received_image.jpg"):
+#     '''
+#     1. Read image from received_image.jpg file
+#     2. Mask the upper two-thirds of the image by making it black
+#     3. Convert the masked image to grayscale
+#     4. Apply histogram equalization to enhance contrast
+#     5. Apply Gaussian blur to the masked image
+#     6. Use Canny edge detection to find edges in the masked image
+#     7. Find contours in the edge-detected masked image
+#     8. Filter contours based on area, aspect ratio (using rotated bounding rectangle), and number of corners
+#     9. Return filtered contours
+#     '''
+#     # Read image from received_image.jpg file
+#     image = cv2.imread(image_path)
+#     if image is None:
+#         raise FileNotFoundError(f"Image not found at {image_path}")
+
+#     # Get the height and width of the image
+#     height, width = image.shape[:2]
+
+#     # Mask the upper two-thirds of the image by making it black
+#     mask = np.zeros_like(image)
+#     mask[int(height * 2 / 3):, :] = image[int(height * 2 / 3):, :]
+#     masked_image = mask
+
+#     # Convert the masked image to grayscale
+#     gray = cv2.cvtColor(masked_image, cv2.COLOR_BGR2GRAY)
+    
+#     # Apply histogram equalization to enhance contrast
+#     equalized = cv2.equalizeHist(gray)
+    
+#     # Apply Gaussian blur to the masked image
+#     blurred = cv2.GaussianBlur(equalized, (5, 5), 0)
+
+#     # Define a kernel for morphological operations
+#     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+
+#     # Perform morphological opening to remove small noise
+#     opened = cv2.morphologyEx(blurred, cv2.MORPH_OPEN, kernel)
+#     closed = cv2.morphologyEx(opened, cv2.MORPH_CLOSE, kernel)
+
+#     # thresholded = cv2.threshold(closed, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
+#     _, thresholded = cv2.threshold(closed, 150, 255, cv2.THRESH_BINARY)
+
+#     # Use Canny edge detection to find edges in the masked image
+#     edges = cv2.Canny(thresholded, 50, 150)
+
+#     # Find contours in the edge-detected masked image
+#     contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+#     # Filter contours based on area, aspect ratio (rotated bounding rectangle), and number of corners
+#     filtered_contours = []
+#     for contour in contours:
+#         # Approximate the contour to a polygon
+#         epsilon = 0.02 * cv2.arcLength(contour, True)  # Adjust epsilon as needed
+#         approx = cv2.approxPolyDP(contour, epsilon, True)
+
+#         # Check the number of corners
+#         num_corners = len(approx)
+#         if 3 <= num_corners <= 6:  # Only consider contours with 3 to 5 corners
+#             area = cv2.contourArea(contour)
+#             if area > 100:  # Adjust this threshold as needed
+#                 # Get the rotated bounding rectangle
+#                 rect = cv2.minAreaRect(contour)
+#                 width, height = rect[1]  # rect[1] contains (width, height)
+
+#                 # Avoid division by zero
+#                 if width == 0 or height == 0:
+#                     continue
+
+#                 # Calculate the aspect ratio of the rotated bounding rectangle
+#                 aspect_ratio = max(width, height) / min(width, height)
+
+#                 # Check for a rectangular shape (aspect ratio close to 1)
+#                 if 0.5 <= aspect_ratio <= 5:
+#                     filtered_contours.append(approx)
+
+#     return contours, filtered_contours
+
+
 def zebra_detection(image_path="received_image.jpg"):
     '''
     1. Read image from received_image.jpg file
-    2. Convert image to grayscale
-    3. Apply Gaussian blur to the image
-    4. Use Canny edge detection to find edges in the image
-    5. Perform Morphological opening to remove small noise
-    5. Find contours in the edge-detected image
-    6. Filter contours based on area and aspect ratio to identify zebra crossings
-    7. Draw bounding boxes around detected zebra crossings
-    8. Return True if a zebra crossing is detected, otherwise return False
+    2. Add zero padding (black border) of width 5
+    3. Mask the upper two-thirds of the image by making it black
+    4. Convert the masked image to grayscale
+    5. Apply histogram equalization to enhance contrast
+    6. Apply Gaussian blur to the masked image
+    7. Use Canny edge detection to find edges in the masked image
+    8. Find contours in the edge-detected masked image
+    9. Adjust contours back to fit the original image dimensions
+    10. Filter contours based on area, aspect ratio (using rotated bounding rectangle), and number of corners
+    11. Return filtered contours
     '''
     # Read image from received_image.jpg file
     image = cv2.imread(image_path)
     if image is None:
         raise FileNotFoundError(f"Image not found at {image_path}")
 
-    # Convert image to grayscale
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    # Add zero padding (black border) of width 5
+    padding = 5
+    padded_image = cv2.copyMakeBorder(image, padding, padding, padding, padding, cv2.BORDER_CONSTANT, value=(0, 0, 0))
 
-    # Apply Gaussian blur to the image
-    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+    # Get the height and width of the padded image
+    height, width = padded_image.shape[:2]
 
-    # Use Canny edge detection to find edges in the image
-    edges = cv2.Canny(blurred, 50, 150)
+    # Mask the upper two-thirds of the image by making it black
+    mask = np.zeros_like(padded_image)
+    mask[int(height * 2 / 3):, :] = padded_image[int(height * 2 / 3):, :]
+    masked_image = mask
+
+    # Convert the masked image to grayscale
+    gray = cv2.cvtColor(masked_image, cv2.COLOR_BGR2GRAY)
+    
+    # Apply histogram equalization to enhance contrast
+    equalized = cv2.equalizeHist(gray)
+    
+    # Apply Gaussian blur to the masked image
+    blurred = cv2.GaussianBlur(equalized, (5, 5), 0)
 
     # Define a kernel for morphological operations
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
 
     # Perform morphological opening to remove small noise
-    opened_edges = cv2.morphologyEx(edges, cv2.MORPH_OPEN, kernel)
+    opened = cv2.morphologyEx(blurred, cv2.MORPH_OPEN, kernel)
+    closed = cv2.morphologyEx(opened, cv2.MORPH_CLOSE, kernel)
 
-    # Find contours in the cleaned-up edge-detected image
-    contours, _ = cv2.findContours(opened_edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    # Apply binary thresholding
+    _, thresholded = cv2.threshold(closed, 150, 255, cv2.THRESH_BINARY)
 
-    # Filter contours based on area and aspect ratio to identify zebra crossings
-    detected_contours = []
+    # Use Canny edge detection to find edges in the masked image
+    edges = cv2.Canny(thresholded, 50, 150)
+
+    # Find contours in the edge-detected masked image
+    contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    # Adjust contours back to fit the original image dimensions
+    adjusted_contours = []
     for contour in contours:
-        area = cv2.contourArea(contour)
-        if area > 100:  # Adjust this threshold as needed
-            x, y, w, h = cv2.boundingRect(contour)
-            aspect_ratio = float(w) / h
+        adjusted_contour = contour - np.array([padding, padding])  # Subtract padding
+        adjusted_contours.append(adjusted_contour)
 
-            # Check for a rectangular shape (aspect ratio close to 1)
-            if aspect_ratio > 0.5 and aspect_ratio < 1.5:
-                # return True
-                detected_contours.append(contour)
+    # Filter contours based on area, aspect ratio (rotated bounding rectangle), and number of corners
+    filtered_contours = []
+    for contour in adjusted_contours:
+        # Approximate the contour to a polygon
+        epsilon = 0.02 * cv2.arcLength(contour, True)  # Adjust epsilon as needed
+        approx = cv2.approxPolyDP(contour, epsilon, True)
 
-    return detected_contours
+        # Check the number of corners
+        num_corners = len(approx)
+        if 3 <= num_corners <= 5:  # Only consider contours with 3 to 5 corners
+            area = cv2.contourArea(contour)
+            if area > 100:  # Adjust this threshold as needed
+                # Get the rotated bounding rectangle
+                rect = cv2.minAreaRect(contour)
+                width, height = rect[1]  # rect[1] contains (width, height)
+
+                # Avoid division by zero
+                if width == 0 or height == 0:
+                    continue
+
+                # Calculate the aspect ratio of the rotated bounding rectangle
+                aspect_ratio = max(width, height) / min(width, height)
+
+                # Check for a rectangular shape (aspect ratio close to 1)
+                if 0.5 <= aspect_ratio <= 5:
+                    filtered_contours.append(approx)
+
+    return adjusted_contours, filtered_contours
+
