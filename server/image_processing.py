@@ -10,26 +10,126 @@ from io import BytesIO
 import cv2
 import numpy as np
 
+# def signal_detection(image_path="received_image.jpg"):
+#     '''
+#     1. Read image from received_image.jpg file
+#     2. Convert image to HSV color space
+#     3. Extract the Value (V) channel and apply a threshold
+#     4. Use the thresholded V channel as a mask
+#     5. Define color ranges for red, green, and yellow signals
+#     6. Create binary masks for red, green, and yellow signals using the defined color ranges
+#     7. Combine the threshold mask with the individual color masks
+#     8. Find number of pixels in each mask
+#     9. Check which mask has the highest number of pixels and is above 50
+#     10. Return the signal color if detected, otherwise return "unknown"
+#     '''
+#     # Read image from received_image.jpg file
+#     image = cv2.imread(image_path)
+#     if image is None:
+#         raise FileNotFoundError(f"Image not found at {image_path}")
+
+#     # Convert image to HSV color space
+#     hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+
+#     # Extract the Value (V) channel
+#     _, _, v = cv2.split(hsv)
+
+#     # Apply a threshold to the V channel
+#     _, thresholded_v = cv2.threshold(v, 180, 255, cv2.THRESH_BINARY)
+
+#     # Use the thresholded V channel as a mask
+#     masked_image = cv2.bitwise_and(image, image, mask=thresholded_v)
+
+#     # Convert the masked image to HSV
+#     hsv_masked = cv2.cvtColor(masked_image, cv2.COLOR_BGR2HSV)
+
+#     # Define color ranges for red, green, and yellow signals
+#     red_lower1 = (0, 50, 50)
+#     red_upper1 = (10, 255, 255)
+#     red_lower2 = (170, 50, 50)
+#     red_upper2 = (180, 255, 255)
+#     yellow_lower = (20, 50, 50)
+#     yellow_upper = (30, 255, 255)
+#     green_lower = (40, 50, 50)
+#     green_upper = (80, 255, 255)
+
+#     # Create binary masks for red, green, and yellow signals using the defined color ranges
+#     red_mask1 = cv2.inRange(hsv_masked, red_lower1, red_upper1)
+#     red_mask2 = cv2.inRange(hsv_masked, red_lower2, red_upper2)
+#     red_mask = cv2.bitwise_or(red_mask1, red_mask2)
+#     yellow_mask = cv2.inRange(hsv_masked, yellow_lower, yellow_upper)
+#     green_mask = cv2.inRange(hsv_masked, green_lower, green_upper)
+
+#     # Count the number of pixels in each mask
+#     red_pixels = cv2.countNonZero(red_mask)
+#     # yellow_pixels = cv2.countNonZero(yellow_mask)
+#     yellow_pixels = 0  # Placeholder for yellow pixels count
+#     green_pixels = cv2.countNonZero(green_mask)
+
+#     # Determine the dominant color
+#     if red_pixels > 1 and red_pixels > yellow_pixels and red_pixels > green_pixels:
+#         return "red"
+#     elif green_pixels > 1 and green_pixels > red_pixels and green_pixels > yellow_pixels:
+#         return "green"
+#     # elif yellow_pixels > 1 and yellow_pixels > red_pixels and yellow_pixels > green_pixels:
+#     #     return "yellow"
+#     else:
+#         return "unknown"
+
+def filter_contours_by_pixel_count(contours, mask, pixel_threshold):
+    """
+    Filters contours based on the number of non-zero pixels inside them.
+
+    Args:
+        contours (list): List of contours to filter.
+        mask (numpy.ndarray): Binary mask of the image.
+        pixel_threshold (int): Minimum number of pixels required for a contour to be valid.
+
+    Returns:
+        list: Filtered contours that meet the pixel threshold.
+    """
+    valid_contours = []
+    for contour in contours:
+        # Create a mask for the current contour
+        contour_mask = np.zeros_like(mask)
+        cv2.drawContours(contour_mask, [contour], -1, 255, thickness=cv2.FILLED)
+
+        # Count the number of non-zero pixels inside the contour
+        pixel_count = cv2.countNonZero(cv2.bitwise_and(mask, contour_mask))
+
+        # Check if the pixel count meets the threshold
+        if pixel_count >= pixel_threshold:
+            valid_contours.append(contour)
+
+    return valid_contours
+
+
 def signal_detection(image_path="received_image.jpg"):
     '''
     1. Read image from received_image.jpg file
     2. Convert image to HSV color space
-    3. Extract the Value (V) channel and apply a threshold
-    4. Use the thresholded V channel as a mask
-    5. Define color ranges for red, green, and yellow signals
-    6. Create binary masks for red, green, and yellow signals using the defined color ranges
-    7. Combine the threshold mask with the individual color masks
-    8. Find number of pixels in each mask
-    9. Check which mask has the highest number of pixels and is above 50
-    10. Return the signal color if detected, otherwise return "unknown"
+    3. Define color ranges for red, green, and yellow signals
+    4. Create binary masks for red, green, and yellow signals
+    5. Find contours for each mask
+    6. Filter signals based on the highest bounding box (smallest y-coordinate)
+    7. Return the signal color if detected, otherwise return "unknown"
     '''
+    pixel_threshold = 15  # Minimum number of pixels required for a contour to be valid
     # Read image from received_image.jpg file
     image = cv2.imread(image_path)
     if image is None:
         raise FileNotFoundError(f"Image not found at {image_path}")
 
+    # Get the height and width of the image
+    height, width = image.shape[:2]
+
+    # Mask the lower half of the image by making it black
+    mask = np.zeros_like(image)
+    mask[:height // 2, :] = image[:height // 2, :]  # Keep only the upper half
+    masked_image = mask
+
     # Convert image to HSV color space
-    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+    hsv = cv2.cvtColor(masked_image, cv2.COLOR_BGR2HSV)
 
     # Extract the Value (V) channel
     _, _, v = cv2.split(hsv)
@@ -53,28 +153,57 @@ def signal_detection(image_path="received_image.jpg"):
     green_lower = (40, 50, 50)
     green_upper = (80, 255, 255)
 
-    # Create binary masks for red, green, and yellow signals using the defined color ranges
+    # Create binary masks for red, green, and yellow signals
     red_mask1 = cv2.inRange(hsv_masked, red_lower1, red_upper1)
     red_mask2 = cv2.inRange(hsv_masked, red_lower2, red_upper2)
     red_mask = cv2.bitwise_or(red_mask1, red_mask2)
     yellow_mask = cv2.inRange(hsv_masked, yellow_lower, yellow_upper)
     green_mask = cv2.inRange(hsv_masked, green_lower, green_upper)
 
-    # Count the number of pixels in each mask
-    red_pixels = cv2.countNonZero(red_mask)
-    # yellow_pixels = cv2.countNonZero(yellow_mask)
-    yellow_pixels = 0  # Placeholder for yellow pixels count
-    green_pixels = cv2.countNonZero(green_mask)
+    # Helper function to find the highest valid group based on connected components
+    def find_highest_valid_group(mask, pixel_threshold):
+        # Perform connected component analysis
+        num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(mask, connectivity=8)
 
-    # Determine the dominant color
-    if red_pixels > 1 and red_pixels > yellow_pixels and red_pixels > green_pixels:
-        return "red"
-    elif green_pixels > 1 and green_pixels > red_pixels and green_pixels > yellow_pixels:
-        return "green"
-    # elif yellow_pixels > 1 and yellow_pixels > red_pixels and yellow_pixels > green_pixels:
-    #     return "yellow"
+        highest_y = float('inf')
+        highest_label = None
+
+        for label in range(1, num_labels):  # Skip the background label (0)
+            pixel_count = stats[label, cv2.CC_STAT_AREA]
+            y = stats[label, cv2.CC_STAT_TOP]
+
+            # Check if the group meets the pixel threshold and is the highest
+            if pixel_count >= pixel_threshold and y < highest_y:
+                highest_y = y
+                highest_label = label
+
+        return highest_label, labels, stats
+
+    # Find the highest valid group for each signal
+    highest_red_label, red_labels, red_stats = find_highest_valid_group(red_mask, pixel_threshold)
+    highest_yellow_label, yellow_labels, yellow_stats = find_highest_valid_group(yellow_mask, pixel_threshold)
+    highest_green_label, green_labels, green_stats = find_highest_valid_group(green_mask, pixel_threshold)
+
+    # Determine the dominant signal based on the highest group
+    signals = []
+    if highest_red_label is not None:
+        signals.append(("red", highest_red_label, red_stats))
+    # if highest_yellow_label is not None:
+    #     signals.append(("yellow", highest_yellow_label, yellow_stats))
+    if highest_green_label is not None:
+        signals.append(("green", highest_green_label, green_stats))
+
+
+    # Sort signals by the y-coordinate of their highest group (ascending order)
+    signals.sort(key=lambda s: s[2][s[1], cv2.CC_STAT_TOP])
+
+
+    # Return the color of the signal that is highest in the image
+    if signals:
+        return signals[0][0], red_mask, yellow_mask, green_mask
     else:
-        return "unknown"
+        return "unknown", red_mask, yellow_mask, green_mask
+
 
 # def zebra_detection(image_path="received_image.jpg"):
 #     '''
