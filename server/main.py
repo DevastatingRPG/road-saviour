@@ -2,18 +2,21 @@ import os
 import io
 import socket
 import datetime
+import requests
 import time
 import cv2
 import serial
 import asyncio
 from bleak import BleakScanner, BleakClient  # Import Bleak for BLE communication
 
-from image_processing import signal_detection
+from image_processing import signal_detection, zebra_detection
 
 from typing import Union
+from fastapi.middleware.cors import CORSMiddleware
+
 from fastapi.responses import JSONResponse, StreamingResponse
-from fastapi import Response
-from fastapi import FastAPI
+from fastapi import Response, Request
+from fastapi import FastAPI, BackgroundTasks
 
 import threading
 
@@ -21,14 +24,26 @@ import threading
 esp32_connected = False
 
 app = FastAPI()
-# esp32_ip = "192.168.1.26"  # Change this to the IP address of your ESP32
-esp32_ip = ""
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins (you can restrict this to specific domains)
+    allow_credentials=True,
+    allow_methods=["*"],  # Allow all HTTP methods
+    allow_headers=["*"],  # Allow all headers
+)
+
+esp32_ip = "192.168.1.23"  # Change this to the IP address of your ESP32
+# esp32_ip = ""
 esp32_port = 8002
 
 # Bluetooth configuration
 bluetooth_port = "COM5"  # Replace with the correct COM port for your Bluetooth module
 bluetooth_baudrate = 9600  # Match the baud rate with your Arduino code
 bluetooth_conn = None
+
+frame_counter = 0
 
 # Global socket object
 esp32_socket = None
@@ -52,126 +67,19 @@ os.makedirs(frames_dir, exist_ok=True)
 # Frame counter
 frame_counter = 0
 
-# Function to discover BLE devices
-async def discover_ble_devices():
-    print("Scanning for BLE devices...")
-    devices = await BleakScanner.discover()
-    for idx, device in enumerate(devices):
-        print(f"{idx + 1}. {device.name} ({device.address})")
-    return devices
+import httpx
 
-
-# Function to connect to a specific BLE device by address
-async def connect_to_ble_device(address):
-    global esp32_client, esp32_connected, esp32_name
-    try:
-        esp32_client = BleakClient(address)
-        await esp32_client.connect()
-        esp32_connected = True
-        print(f"Connected to ESP32 at {address}")
-
-        # Optionally, read a characteristic or send a command to confirm connection
-        esp32_name = await esp32_client.read_gatt_char("00002a00-0000-1000-8000-00805f9b34fb")  # Device name characteristic
-        esp32_name = esp32_name.decode("utf-8")
-        print(f"ESP32 name: {esp32_name}")
-    except Exception as e:
-        print(f"Failed to connect to ESP32: {e}")
-        esp32_connected = False
-
-# Function to handle BLE connection at startup
-def ble_connection_handler():
-    global esp32_address
-    asyncio.run(discover_and_connect())
-
-# Discover and connect to a BLE device
-async def discover_and_connect():
-    global esp32_address
-    devices = await discover_ble_devices()
-    if not devices:
-        print("No BLE devices found.")
-        return
-
-    # Select the device to connect to
-    print("Select a device to connect to:")
-    for idx, device in enumerate(devices):
-        print(f"{idx + 1}. {device.name} ({device.address})")
-
-    choice = int(input("Enter the number of the device: ")) - 1
-    if 0 <= choice < len(devices):
-        esp32_address = devices[choice].address
-        await connect_to_ble_device(esp32_address)
-    else:
-        print("Invalid choice.")
-
-# Function to send a command to the ESP32
-async def send_command_to_esp32(command: str):
-    global esp32_client
-    if esp32_client and esp32_connected:
+async def send_command_to_esp32(command: str, parameter: str):
+    esp32_url = f"http://{esp32_ip}/{parameter}{command}"
+    async with httpx.AsyncClient() as client:
         try:
-            # Replace with the characteristic UUID for writing commands
-            await esp32_client.write_gatt_char("00002a00-0000-1000-8000-00805f9b34fb", command.encode())
-            print(f"Command '{command}' sent to ESP32.")
-        except Exception as e:
-            print(f"Failed to send command: {e}")
-    else:
-        print("ESP32 is not connected.")
-
-# Function to establish a socket connection
-def connect_to_esp32():
-    global esp32_socket, esp32_conn, esp32_connected
-    while True:
-        try:
-            esp32_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            esp32_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            print('a')
-            esp32_socket.bind((esp32_ip, esp32_port))
-            esp32_socket.listen()
-            print('b')
-            esp32_conn, addr = esp32_socket.accept()
-            print('c')
-            # esp32_socket.connect((esp32_ip, esp32_port))
-            print("Connected to ESP32 successfully.")
-            
-            # Receive the name from ESP32
-            data = esp32_conn.recv(1024).decode().strip()
-            if data.startswith("NAME:"):
-                esp32_name = data.split(":", 1)[1]
-                print(f"Received name from ESP32: {esp32_name}")
+            response = await client.get(esp32_url)
+            if response.status_code == 200:
+                print(f"Command '{command}' sent to ESP32 successfully with parameter '{parameter}'.")
             else:
-                print(f"Unexpected message from ESP32 during connection: {data}")
-
-            esp32_connected = True
-            break
+                print(f"Failed to send command to ESP32. Status code: {response.status_code}")
         except Exception as e:
-            print(f"Failed to connect to ESP32: {e}. Retrying in 5 seconds...")
-            time.sleep(5)
-
-
-# Function to send a heartbeat message to ESP32
-def heartbeat():
-    global esp32_conn, esp32_connected
-    while True:
-        if esp32_connected:
-            try:
-                # Send the heartbeat command (command number 9)
-                esp32_conn.sendall(b"9")
-                # Wait for a response
-                response = esp32_conn.recv(1024)
-                if response.decode().strip() != "ACK":
-                    raise Exception("Invalid response from ESP32")
-            except Exception as e:
-                print(f"Heartbeat failed: {e}. Reconnecting...")
-                esp32_connected = False
-                connect_to_esp32()
-        time.sleep(5)  # Send heartbeat every 5 seconds
-
-
-# Establish connection at startup
-@app.on_event("startup")
-def startup_event():
-    # connect_to_esp32()
-    threading.Thread(target=ble_connection_handler, daemon=True).start()
-    # threading.Thread(target=heartbeat, daemon=True).start()
+            print(f"Error sending command to ESP32: {e}")
 
 
 @app.get("/")
@@ -180,7 +88,9 @@ def read_root():
 
 # Receive image from ESP32 and save it to a file
 @app.post("/upload-image/")
-def upload_image(file: bytes):
+async def upload_image(request: Request):
+    global frame_counter, violations
+    file = await request.body()
     with open("received_image.jpg", "wb") as f:
         f.write(file)
     # If a violation is ongoing, save the frame
@@ -212,22 +122,55 @@ def get_image():
         }
     )
 
+async def send_commands_to_esp32(signal_detected: str, zebra_crossing_detected: bool):
+    """
+    Sends commands to ESP32 based on detection results.
+    """
+    if signal_detected == "green":
+        await send_command_to_esp32("1", "signal=")  # Signal green
+    elif signal_detected == "red":
+        await send_command_to_esp32("0", "signal=")  # Signal red
+    else:
+        await send_command_to_esp32("-1", "signal=")  # Unknown signal
+
+    if zebra_crossing_detected:
+        await send_command_to_esp32("1", "zebra=")  # Zebra crossing detected
+    else:
+        await send_command_to_esp32("0", "zebra=")  # No zebra crossing detected
+
 '''
 Receive image from ESP32:
 1. Save image to a file
 2. Return signal and zebra crossing detection result to ESP32
 '''
 @app.post("/process-image/")
-async def process_image(file: bytes):
+async def process_image(request: Request, background_tasks: BackgroundTasks):
+    file = await request.body()
+
     with open("received_image.jpg", "wb") as f:
         f.write(file)
     # Process the image and return the result
     # For example, you can use OpenCV to detect objects in the image
     # Here we just return a dummy result
     signal_detected = signal_detection("received_image.jpg")
-    zebra_crossing_detected = False  # Replace with actual detection logic
-    result = {"signal": signal_detected, "zebra": zebra_crossing_detected}
-        # If a violation is ongoing, save the frame
+    org_signal = signal_detected
+    zebra_crossing_detected = zebra_detection("received_image.jpg")
+    # Convert signal_detected to numbers
+    if signal_detected == "green":
+        signal_detected = 1
+    elif signal_detected == "red":
+        signal_detected = 0
+    else:
+        signal_detected = -1
+
+    # Convert zebra_crossing_detected to numbers
+    zebra_crossing_detected = 1 if zebra_crossing_detected else 0
+
+
+    result = {"signal": signal_detected, "zebra": 1}
+    print(org_signal)
+
+    
     if violations["traffic"] == 1 or violations["zebra"] == 1:
         frame_path = os.path.join(frames_dir, f"frame_{frame_counter:04d}.jpg")
         with open(frame_path, "wb") as f:
@@ -301,6 +244,7 @@ def violation_end(violation_type: int):
 
     if frame_files:
         # Get the frame size from the first frame
+        print(frame_files[0])
         frame = cv2.imread(frame_files[0])
         height, width, _ = frame.shape
 
@@ -357,9 +301,9 @@ Receive a command from the web browser to actuate the ESP32 Bot
 2. Send the command to the ESP32 Bot via WiFi communication
 '''
 # FastAPI endpoint to send a command
-@app.post("/send-command/")
-async def send_command(command: str):
-    await send_command_to_esp32(command)
+@app.get("/send-command/")
+async def send_command(command: str, parameter: str):
+    await send_command_to_esp32(command, parameter)
     return {"status": "success", "command": command}
 
 

@@ -2,171 +2,210 @@
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Traffic Saviour Control Panel</title>
-    <style>
-        body {
-            margin: 0;
-            padding: 0;
-            overflow: hidden;
-            font-family: Arial, sans-serif;
-        }
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Traffic Saviour Control Panel</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      font-family: Arial, sans-serif;
+    }
 
-        .container {
-            position: relative;
-            width: 100vw;
-            height: 100vh;
-            background: url('background-image.jpg') no-repeat center center;
-            background-size: cover;
-        }
+    .container {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      background: url("images/car.jpg") no-repeat center center;
+      background-size: cover;
+    }
 
-        /* Accelerator Button */
-        .accelerator {
-            position: absolute;
-            bottom: 20%;
-            left: 70%;
-            width: 100px;
-            height: 100px;
-            cursor: pointer;
-            background: url('accelerator.png') no-repeat center center;
-            background-size: contain;
-        }
+    .accelerator {
+      position: absolute;
+      bottom: 20%;
+      left: 80%;
+      width: 100px;
+      height: 100px;
+      cursor: pointer;
+      background: url("images/acc.png") no-repeat center center;
+      background-size: contain;
+      transition: transform 0.3s ease;
+    }
 
-        /* Reverse Button */
-        .reverse {
-            position: absolute;
-            bottom: 20%;
-            left: 50%;
-            width: 100px;
-            height: 100px;
-            cursor: pointer;
-            background: url('reverse.png') no-repeat center center;
-            background-size: contain;
-        }
+    .reverse {
+      position: absolute;
+      bottom: 20%;
+      left: 65%;
+      width: 100px;
+      height: 100px;
+      cursor: pointer;
+      background: url("images/brake.png") no-repeat center center;
+      background-size: contain;
+      transition: transform 0.3s ease;
+    }
 
-        /* Live Feed Section */
-        .live-feed {
-            position: absolute;
-            top: 10%;
-            left: 10%;
-            width: 300px;
-            height: 200px;
-            border: 5px solid #ccc;
-            background-color: black;
-        }
+    .live-feed {
+      position: absolute;
+      top: 10%;
+      left: 65%;
+      width: 400px;
+      height: 300px;
+      border: 5px solid #ccc;
+      background-color: black;
+    }
 
-        .live-feed img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
+    .live-feed img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
 
-        /* LED Alerts */
-        .led {
-            position: absolute;
-            top: 50%;
-            left: 20%;
-            width: 20px;
-            height: 20px;
-            border-radius: 50%;
-            background-color: gray;
-        }
+    .accelerator:hover,
+    .reverse:hover {
+      transform: scale(1.1);
+    }
 
-        .led.active {
-            background-color: green;
-        }
-    </style>
+    /* Toggle Switch */
+    .toggle-container {
+      position: absolute;
+      bottom: 22%;
+      left: 91%;
+      transform: translateX(-50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      font-size: 14px;
+      color: white;
+    }
+
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 50px;
+      height: 26px;
+    }
+
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #ccc;
+      transition: 0.4s;
+      border-radius: 34px;
+    }
+
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 18px;
+      width: 18px;
+      left: 4px;
+      bottom: 4px;
+      background-color: white;
+      transition: 0.4s;
+      border-radius: 50%;
+    }
+
+    input:checked+.slider {
+      background-color: #2196F3;
+    }
+
+    input:checked+.slider:before {
+      transform: translateX(24px);
+    }
+
+    .mode-label {
+      margin-top: 6px;
+    }
+  </style>
 </head>
 
 <body>
-    <div class="container">
-        <!-- Accelerator Button -->
-        <div class="accelerator" id="accelerator"></div>
+  <div class="container">
+    <!-- Accelerator Button -->
+    <div class="accelerator" id="accelerator"></div>
 
-        <!-- Reverse Button -->
-        <div class="reverse" id="reverse"></div>
+    <!-- Reverse Button -->
+    <div class="reverse" id="reverse"></div>
 
-        <!-- Live Feed Section -->
-        <div class="live-feed">
-            <img id="live-feed-image" src="" alt="Live Feed">
-        </div>
-
-        <!-- LED Alerts -->
-        <div class="led" id="led1"></div>
-        <div class="led" id="led2"></div>
+    <!-- Live Feed Section -->
+    <div class="live-feed">
+      <img id="live-feed-image" src="images/default.jpg" alt="Live Feed" />
     </div>
 
-    <script>
-        // API Endpoints
-        const sendCommandEndpoint = "http://127.0.0.1:8000/send-command/";
-        const liveFeedEndpoint = "http://127.0.0.1:8000/get-image/";
+    <!-- Toggle Switch for F/R -->
+    <div class="toggle-container">
+      <label class="switch">
+        <input type="checkbox" id="modeToggle" />
+        <span class="slider"></span>
+      </label>
+      <div class="mode-label" id="toggleLabel">F</div>
+    </div>
+  </div>
 
-        // LED Elements
-        const led1 = document.getElementById("led1");
-        const led2 = document.getElementById("led2");
+  <script>
+    const globalIP = "192.168.1.8";
+    const espIP = "192.168.1.23";
+    const accelerator = document.getElementById("accelerator");
+    const reverse = document.getElementById("reverse");
+    const modeToggle = document.getElementById("modeToggle");
+    const toggleLabel = document.getElementById("toggleLabel");
 
-        // Accelerator Button
-        const accelerator = document.getElementById("accelerator");
-        accelerator.addEventListener("click", async () => {
-            toggleLED(led1, true);
-            await sendCommand("accelerate");
-            toggleLED(led1, false);
+    // Update toggle label
+    modeToggle.addEventListener("change", () => {
+      toggleLabel.textContent = modeToggle.checked ? "R" : "F";
+    });
+
+    const liveFeedImage = document.getElementById("live-feed-image");
+
+    // Function to update the live feed image
+    function updateLiveFeed() {
+      const timestamp = new Date().getTime(); // Add a timestamp to prevent caching
+      liveFeedImage.src = `../server/received_image.jpg?timestamp=${timestamp}`;
+    }
+
+    // Update the live feed every 5 seconds
+    setInterval(updateLiveFeed, 0.5);
+    // // Simulate live feed
+    // function changeLiveFeed() {
+    //   liveFeedImage.src = "images/default.jpg";
+    // }
+
+    // setInterval(changeLiveFeed, 5000);
+
+    // Send command to backend
+    async function sendCommand(command, parameter) {
+      try {
+        const response = await fetch(`http://${espIP}/${parameter}${command}`, {
+          method: "GET", // Use GET instead of POST
         });
+        console.log(`Sent: ${parameter}${command}`);
+      } catch (err) {
+        console.error("Error sending command:", err);
+      }
+    }
 
-        // Reverse Button
-        const reverse = document.getElementById("reverse");
-        reverse.addEventListener("click", async () => {
-            toggleLED(led2, true);
-            await sendCommand("reverse");
-            toggleLED(led2, false);
-        });
+    // Accelerator Click
+    accelerator.addEventListener("click", () => {
+      const command = modeToggle.checked ? "2" : "1"; // R = 2, F = 1
+      sendCommand(command, "move=");
+    });
 
-        // Live Feed Image
-        const liveFeedImage = document.getElementById("live-feed-image");
-
-        // Function to toggle LEDs
-        function toggleLED(led, state) {
-            if (state) {
-                led.classList.add("active");
-            } else {
-                led.classList.remove("active");
-            }
-        }
-
-        // Function to send a command to the backend
-        async function sendCommand(command) {
-            try {
-                const response = await fetch(sendCommandEndpoint, {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({ command }),
-                });
-                const data = await response.json();
-                console.log(data);
-            } catch (error) {
-                console.error("Error sending command:", error);
-            }
-        }
-
-        // Function to periodically fetch the live feed
-        async function fetchLiveFeed() {
-            try {
-                const response = await fetch(liveFeedEndpoint);
-                if (response.ok) {
-                    const blob = await response.blob();
-                    liveFeedImage.src = URL.createObjectURL(blob);
-                }
-            } catch (error) {
-                console.error("Error fetching live feed:", error);
-            }
-        }
-
-        // Fetch live feed every 5 seconds
-        setInterval(fetchLiveFeed, 5000);
-    </script>
+    // Reverse (Brake) Click
+    reverse.addEventListener("click", () => {
+      sendCommand("0", "move=");
+    });
+  </script>
 </body>
 
 </html>
